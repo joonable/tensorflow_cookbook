@@ -79,14 +79,23 @@ def generate_batch_data(sentences, batch_size, window_size, method='skip_gram'):
     label_data = []
     while len(batch_data) < batch_size:
         # select random sentence to start
+        # len(sentences) 이하의 숫자 하나 임의로 선택
+
         rand_sentence_ix = int(np.random.choice(len(sentences), size=1))
         rand_sentence = sentences[rand_sentence_ix]
+
+
+        # window size 기준으로 sequence 생성
+        # doc2vec에서는 window_sequence, label_indicies 불필요
+
         # Generate consecutive windows to look at
         window_sequences = [rand_sentence[max((ix-window_size),0):(ix+window_size+1)] for ix, x in enumerate(rand_sentence)]
         # Denote which element of each window is the center word of interest
         label_indices = [ix if ix<window_size else window_size for ix,x in enumerate(window_sequences)]
         
         # Pull out center word of interest for each window and create a tuple for each window
+        # 모델의 목적(성격)에 맞게 x, y값 (word pair) 생성
+        # doc2vec 의 경우 rand_sentence_ix 를 더해서 doc_id 도 부여
         if method=='skip_gram':
             batch_and_labels = [(x[y], x[:y] + x[(y+1):]) for x,y in zip(window_sequences, label_indices)]
             # Make it in to a big list of tuples (target word, surrounding word)
@@ -100,9 +109,15 @@ def generate_batch_data(sentences, batch_size, window_size, method='skip_gram'):
         elif method=='doc2vec':
             # For doc2vec we keep LHS window only to predict target word
             batch_and_labels = [(rand_sentence[i:i+window_size], rand_sentence[i+window_size]) for i in range(0, len(rand_sentence)-window_size)]
+            # [([59, 142, 2838], 0), ([142, 2838, 0], 155), ([2838, 0, 155], 222), ([0, 155, 222], 46), ([155, 222, 46], 171), ([222, 46, 171], 7335), ([46, 171, 7335], 5)]
+
             batch, labels = [list(x) for x in zip(*batch_and_labels)]
             # Add document index to batch!! Remember that we must extract the last index in batch for the doc-index
             batch = [x + [rand_sentence_ix] for x in batch]
+
+            # batch = [word_0, word_1, word_2, doc_idx], [word_1, word_2, word_3, doc_idx]
+            # labels = [word_3, word_4, word_5 ..]
+
         else:
             raise ValueError('Method {} not implemented yet.'.format(method))
             

@@ -21,6 +21,7 @@ import collections
 import io
 import tarfile
 import urllib.request
+
 import text_helpers
 from nltk.corpus import stopwords
 from tensorflow.python.framework import ops
@@ -88,6 +89,7 @@ print('Creating Model')
 # Define Embeddings:
 embeddings = tf.Variable(tf.random_uniform([vocabulary_size, embedding_size], -1.0, 1.0))
 doc_embeddings = tf.Variable(tf.random_uniform([len(texts), doc_embedding_size], -1.0, 1.0))
+# assert(len(target)==len(texts))
 
 # NCE loss parameters
 nce_weights = tf.Variable(tf.truncated_normal([vocabulary_size, concatenated_size],
@@ -105,11 +107,23 @@ embed = tf.zeros([batch_size, embedding_size])
 for element in range(window_size):
     embed += tf.nn.embedding_lookup(embeddings, x_inputs[:, element])
 
+# word, word, word  doc_id      doc_id
+# word, word, word  doc_id      doc_id
+# word, word, word  doc_id  =>  doc_id
+# word, word, word  doc_id      doc_id
+# word, word, word  doc_id      doc_id
 doc_indices = tf.slice(x_inputs, [0,window_size],[batch_size,1])
 doc_embed = tf.nn.embedding_lookup(doc_embeddings,doc_indices)
 
 # concatenate embeddings
+# final_embed.shape = (batch_size)
 final_embed = tf.concat(axis=1, values=[embed, tf.squeeze(doc_embed)])
+
+# word_emb, word_emb, word_emb      doc_emb
+# word_emb, word_emb, word_emb      doc_emb
+# word_emb, word_emb, word_emb  =>  doc_emb
+# word_emb, word_emb, word_emb      doc_emb
+# word_emb, word_emb, word_emb      doc_emb
 
 # Get loss from prediction
 loss = tf.reduce_mean(tf.nn.nce_loss(weights=nce_weights,
@@ -124,6 +138,8 @@ optimizer = tf.train.GradientDescentOptimizer(learning_rate=model_learning_rate)
 train_step = optimizer.minimize(loss)
 
 # Cosine similarity between words
+# cosine similarity 를 이용하여 valid dataset의 similarity 구함
+
 norm = tf.sqrt(tf.reduce_sum(tf.square(embeddings), 1, keep_dims=True))
 normalized_embeddings = embeddings / norm
 valid_embeddings = tf.nn.embedding_lookup(normalized_embeddings, valid_dataset)
@@ -249,6 +265,28 @@ test_acc = []
 i_data = []
 for i in range(10000):
     rand_index = np.random.choice(text_data_train.shape[0], size=logistic_batch_size)
+
+    '''
+    batch_size가 넘지 않을 떄 까지 임의의 문장을 계속 뽑는다
+    몇 개의 문장이 내부에 존재할지는 모름
+
+    batch_inputs = [
+        [4026, 1095,  679, 8818],
+        [1095,  679,  755, 8818],
+        [ 679,  755, 1132, 8818],
+        ....
+        [1972, 2849,    0, 1494],
+        [2849,    0,    0, 1494],
+        [   0,    0,   45, 1494] ]
+
+    batch_input_format = [word_seq_0, word_seq_1, word_seq2, doc_idx]
+
+    batch_labels = ['755', '1132', .... ,'45', '14']
+    batch_label_format = [word_seq_3, word_seq_4, .... ]
+
+    len(batch_inputs, batch_labels) == batch_size
+    '''
+
     rand_x = text_data_train[rand_index]
     # Append review index at the end of text data
     rand_x_doc_indices = train_indices[rand_index]
