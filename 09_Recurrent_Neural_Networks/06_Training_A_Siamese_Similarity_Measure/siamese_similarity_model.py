@@ -24,9 +24,20 @@ def snn(address1, address2, dropout_keep_prob,
         lstm_backward_cell = tf.contrib.rnn.DropoutWrapper(lstm_backward_cell, output_keep_prob=dropout_keep_prob)
     
         # Split title into a character sequence
-        input_embed_split = tf.split(axis=1, num_or_size_splits=input_length, value=input_vector)
-        input_embed_split = [tf.squeeze(x, axis=[1]) for x in input_embed_split]
+        '''
+        num_or_size_splits: Either a 0-D integer Tensor indicating the number of splits along split_dim 
+        or a 1-D integer Tensor containing the sizes of each output tensor along split_dim. 
+        If a scalar then it must evenly divide value.shape[axis]; 
+        otherwise the sum of sizes along the split dimension must match that of the value.
         
+        # input_vector = (m, n) / input_length = n(=step_size) /
+        # input_embed_split = tf.split(value=input_vector, num_or_size_splits=input_length, axis=1) => (m, n/n=1)
+        # input_embed_split = [tf.squeeze(x, axis=[1]) for x in input_embed_split] => (m)
+        '''
+
+        input_embed_split = tf.split(value=input_vector, num_or_size_splits=input_length, axis=1)
+        input_embed_split = [tf.squeeze(x, axis=[1]) for x in input_embed_split]
+
         # Create bidirectional layer
         try:
             outputs, _, _ = tf.contrib.rnn.static_bidirectional_rnn(lstm_forward_cell,
@@ -38,6 +49,12 @@ def snn(address1, address2, dropout_keep_prob,
                                                               lstm_backward_cell,
                                                               input_embed_split,
                                                               dtype=tf.float32)
+        '''
+        Returns: A tuple (outputs, output_state_fw, output_state_bw) where: outputs is a length T list of outputs
+        (one for each input), which are depth-concatenated forward and backward outputs. output_state_fw is the final 
+        state of the forward rnn. output_state_bw is the final state of the backward rnn.
+        '''
+
         # Average The output over the sequence
         temporal_mean = tf.add_n(outputs) / input_length
         
@@ -60,8 +77,8 @@ def snn(address1, address2, dropout_keep_prob,
         output2 = siamese_nn(address2, num_features)
     
     # Unit normalize the outputs
-    output1 = tf.nn.l2_normalize(output1, 1)
-    output2 = tf.nn.l2_normalize(output2, 1)
+    output1 = tf.nn.l2_normalize(output1, axis=1)
+    output2 = tf.nn.l2_normalize(output2, axis=1)
     # Return cosine distance
     #   in this case, the dot product of the norms is the same.
     dot_prod = tf.reduce_sum(tf.multiply(output1, output2), 1)
