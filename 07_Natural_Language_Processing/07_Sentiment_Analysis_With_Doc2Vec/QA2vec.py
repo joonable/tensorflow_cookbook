@@ -75,7 +75,7 @@ print('Normalizing Text Data')
 question_texts = text_helpers.normalize_text(question_texts, stops)       #TODO : normalise_kor_text()
 answer_texts = text_helpers.normalize_text(answer_texts, stops)           #TODO : normalise_kor_text()
 
-# Texts must contain at least window_size
+# Texts must coentain at least window_size
 # target = [target[ix] for ix, x in enumerate(texts) if len(x.split()) > window_size]
 # texts = [x for x in texts if len(x.split()) > window_size]
 
