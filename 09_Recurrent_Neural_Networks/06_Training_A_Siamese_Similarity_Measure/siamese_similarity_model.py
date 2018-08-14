@@ -79,14 +79,17 @@ def snn(address1, address2, dropout_keep_prob,
     # Unit normalize the outputs
     output1 = tf.nn.l2_normalize(output1, axis=1)
     output2 = tf.nn.l2_normalize(output2, axis=1)
+
     # Return cosine distance
-    #   in this case, the dot product of the norms is the same.
+    # in this case, the dot product of the norms is the same.
     dot_prod = tf.reduce_sum(tf.multiply(output1, output2), 1)
     
     return dot_prod
 
 
 def get_predictions(scores):
+    # Returns an element-wise indication of the sign of a number.
+    # y = sign(x) = [-1 if x < 0]; [0 if x == 0 or tf.is_nan(x)]; [1 if x > 0]
     predictions = tf.sign(scores, name="predictions")
     return predictions
 
@@ -109,7 +112,7 @@ def loss(scores, y_target, margin):
     neg_mult = tf.add(tf.multiply(-0.5, tf.cast(y_target, tf.float32)), 0.5)
     # Else if y-target is 0 to 1, then do the following
     neg_mult = tf.subtract(1., tf.cast(y_target, tf.float32))
-    
+
     negative_loss = neg_mult*tf.square(scores)
     
     # Combine similar and dissimilar losses
@@ -120,9 +123,13 @@ def loss(scores, y_target, margin):
     
     # Check if target is zero (dissimilar strings)
     target_zero = tf.equal(tf.cast(y_target, tf.float32), 0.)
+
     # Check if cosine outputs is smaller than margin
+    # Returns the truth value of (x < y) element-wise.
     less_than_margin = tf.less(scores, margin)
+
     # Check if both are true
+    # Returns the truth value of x AND y element-wise.
     both_logical = tf.logical_and(target_zero, less_than_margin)
     both_logical = tf.cast(both_logical, tf.float32)
     # If both are true, then multiply by (1-1)=0.
@@ -136,12 +143,15 @@ def loss(scores, y_target, margin):
 
 def accuracy(scores, y_target):
     predictions = get_predictions(scores)
+
     # Cast into integers (outputs can only be -1 or +1)
     y_target_int = tf.cast(y_target, tf.int32)
+
     # Change targets from (0,1) --> (-1, 1)
     #    via (2 * x - 1)
-    #y_target_int = tf.sub(tf.mul(y_target_int, 2), 1)
+    # y_target_int = tf.sub(tf.mul(y_target_int, 2), 1)
     predictions_int = tf.cast(tf.sign(predictions), tf.int32)
+
     correct_predictions = tf.equal(predictions_int, y_target_int)
     accuracy = tf.reduce_mean(tf.cast(correct_predictions, tf.float32))
     return accuracy
