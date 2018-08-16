@@ -12,6 +12,7 @@ import collections
 import numpy as np
 import requests
 import gzip
+import pandas as pd
 
 # Normalize text
 def normalize_text(texts, stops):
@@ -33,25 +34,64 @@ def normalize_text(texts, stops):
     return(texts)
 
 
+# Normalize text
+def normalise_kor_text(texts, stops):
+    # Lower case
+    # texts = [x.lower() for x in texts]
+
+    # Remove punctuation
+    texts = [''.join(c for c in x if c not in string.punctuation) for x in texts]
+
+    # Remove numbers
+    texts = [''.join(c for c in x if c not in '0123456789') for x in texts]
+
+    # Remove stopwords
+    texts = [' '.join([word for word in x.split() if word not in (stops)]) for x in texts]
+
+    # Trim extra whitespace
+    texts = [' '.join(x.split()) for x in texts]
+
+    return (texts)
+
+
+def load_dataset():
+    df = pd.read_pickle('/home/will/workspace/sr_data/preprocessed_sr_data_180816.pkl')    # TODO file_path
+    texts = df.question_pos_text.apply(lambda x: " ".join(x)).drop_duplicates().tolist()
+    target = [i for i in range(len(texts))]
+    print(texts[0])
+    return texts, target
+
+
+def load_dataset_QA():
+    df = pd.read_pickle('/home/will/workspace/sr_data/preprocessed_sr_data_180816.pkl')    # TODO file_path
+    question_texts = df.question_pos_text.apply(lambda x: " ".join(x)).tolist()
+    answer_texts = df.answer_pos_text.apply(lambda x: " ".join(x)).tolist()
+    target = [i for i in range(len(question_texts))]
+    return question_texts, answer_texts, target
+#
+
 # Build dictionary of words
 def build_dictionary(sentences, vocabulary_size):
     # Turn sentences (list of strings) into lists of words
     split_sentences = [s.split() for s in sentences]
     words = [x for sublist in split_sentences for x in sublist]
-    
+    print(words[0] + words[3] + words[2332])
+
+    print("# words : %d ", len(words))
+
     # Initialize list of [word, word_count] for each word, starting with unknown
     count = [['RARE', -1]]
     
     # Now add most frequent words, limited to the N-most frequent (N=vocabulary size)
     count.extend(collections.Counter(words).most_common(vocabulary_size-1))
-    
+
     # Now create the dictionary
     word_dict = {}
     # For each word, that we want in the dictionary, add it, then make it
     # the value of the prior dictionary length
     for word, word_count in count:
         word_dict[word] = len(word_dict)
-    
+
     return(word_dict)
     
 
