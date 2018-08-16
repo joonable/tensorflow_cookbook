@@ -12,6 +12,7 @@
 import tensorflow as tf
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 import random
 import os
 import pickle
@@ -21,7 +22,7 @@ import collections
 import io
 import tarfile
 import urllib.request
-
+import json
 import text_helpers
 from nltk.corpus import stopwords
 from tensorflow.python.framework import ops
@@ -34,27 +35,30 @@ data_folder_name = 'temp'
 if not os.path.exists(data_folder_name):
     os.makedirs(data_folder_name)
 
+with open('./config.json') as json_file:
+    conf = json.load(json_file)
+
 # Start a graph session
 sess = tf.Session()
 
 # Declare model parameters
-batch_size = 500
-vocabulary_size = 7500
-generations = 5000000
-model_learning_rate = 0.001
+batch_size = conf.batch_size
+vocab_size = conf.vocab_size
+iterations = conf.iterations
+lr = conf.lr
 
 # embedding_size = 200   # Word embedding size
-word_embedding_size = 200
-doc_embedding_size = 100   # Document embedding size
-concatenated_size = word_embedding_size + doc_embedding_size
+word_emb_size = conf.word_emb_size
+doc_emb_size = conf.doc_emb_size   # Document embedding size
+concatenated_size = word_emb_size + doc_emb_size
 
 num_sampled = int(batch_size/2)    # Number of negative examples to sample.
-window_size = 5       # How many words to consider to the left.
+window_size = conf.window_size       # How many words to consider to the left.
 
 # Add checkpoints to training
-save_embeddings_every = 5000
-print_valid_every = 5000
-print_loss_every = 100
+save_embeddings_every = conf.save_embeddings_every
+print_valid_every = conf.print_valid_every
+print_loss_every = conf.print_loss_every
 
 # Declare stop words
 #stops = stopwords.words('english')
@@ -67,30 +71,29 @@ valid_words = ['love', 'hate', 'happy', 'sad', 'man', 'woman']
 # Load the movie review data
 print('Loading Data')
 # texts, target = text_helpers.load_movie_data()
-question_texts, answer_texts= text_helpers.load_movie_data()      #TODO : load_dataset()
+
+
+question_texts, answer_texts, target = text_helpers.load_dataset_QA()
 
 # Normalize text
 print('Normalizing Text Data')
 # texts = text_helpers.normalize_text(texts, stops)
-question_texts = text_helpers.normalize_text(question_texts, stops)       #TODO : normalise_kor_text()
-answer_texts = text_helpers.normalize_text(answer_texts, stops)           #TODO : normalise_kor_text()
+question_texts = text_helpers.normalise_kor_text(question_texts, stops)       #TODO : normalise_kor_text()
+answer_texts = text_helpers.normalise_kor_text(answer_texts, stops)           #TODO : normalise_kor_text()
 
 # Texts must coentain at least window_size
-# target = [target[ix] for ix, x in enumerate(texts) if len(x.split()) > window_size]
-# texts = [x for x in texts if len(x.split()) > window_size]
-
-# target = [target[idx] for idx, (question, answer) in enumerate(zip(question_texts, answer_texts))
-#           if len(question.split() > window_size and answer.split() > window_size)]
+target = [target[idx] for idx, (question, answer) in enumerate(zip(question_texts, answer_texts))
+          if len(question.split()) > window_size and len(answer.split()) > window_size]
 question_texts = [question for idx, (question, answer) in enumerate(zip(question_texts, answer_texts))
-          if len(question.split() > window_size and answer.split() > window_size)]
+          if len(question.split()) > window_size and len(answer.split()) > window_size]
 answer_texts = [answer for idx, (question, answer) in enumerate(zip(question_texts, answer_texts))
-          if len(question.split() > window_size and answer.split() > window_size)]
+          if len(question.split()) > window_size and len(answer.split()) > window_size]
 
 assert(len(target)==len(question_texts)==len(answer_texts))
 
 # Build our data set and dictionaries
 print('Creating Dictionary')
-word_dictionary = text_helpers.build_dictionary(question_texts + answer_texts, vocabulary_size)
+word_dictionary = text_helpers.build_dictionary(question_texts + answer_texts, vocab_size)
 word_dictionary_rev = dict(zip(word_dictionary.values(), word_dictionary.keys()))
 
 # text_data = text_helpers.text_to_numbers(texts, word_dictionary)
@@ -101,22 +104,23 @@ answer_data = text_helpers.text_to_numbers(answer_texts, word_dictionary)
 valid_examples = [word_dictionary[x] for x in valid_words]    
 
 print('Creating Model')
+
 # Define Embeddings:
 # embeddings = tf.Variable(tf.random_uniform([vocabulary_size, embedding_size], -1.0, 1.0))
 # doc_embeddings = tf.Variable(tf.random_uniform([len(texts), doc_embedding_size], -1.0, 1.0))
 
-word_embeddings = tf.Variable(tf.random_uniform([vocabulary_size, word_embedding_size], -1.0, 1.0))
-question_embeddings = tf.Variable(tf.random_uniform([len(question_texts), doc_embedding_size], -1.0, 1.0))
-answer_embeddings = tf.Variable(tf.random_uniform([len(answer_texts), doc_embedding_size], -1.0, 1.0))
+word_embeddings = tf.Variable(tf.random_uniform([vocab_size, word_emb_size], -1.0, 1.0))
+question_embeddings = tf.Variable(tf.random_uniform([len(question_texts), doc_emb_size], -1.0, 1.0))
+answer_embeddings = tf.Variable(tf.random_uniform([len(answer_texts), doc_emb_size], -1.0, 1.0))
 
 is_question = tf.Variable(True, trainable=False)
 
 # assert(len(target)==len(texts))
 
 # NCE loss parameters
-nce_weights = tf.Variable(tf.truncated_normal([vocabulary_size, concatenated_size],
-                                               stddev=1.0 / np.sqrt(concatenated_size)))
-nce_biases = tf.Variable(tf.zeros([vocabulary_size]))
+nce_weights = tf.Variable(tf.truncated_normal([vocab_size, concatenated_size],
+                                              stddev=1.0 / np.sqrt(concatenated_size)))
+nce_biases = tf.Variable(tf.zeros([vocab_size]))
 
 # Create data/target placeholders
 x_inputs = tf.placeholder(tf.int32, shape=[None, window_size + 1]) # plus 1 for doc index
@@ -125,11 +129,7 @@ valid_dataset = tf.constant(valid_examples, dtype=tf.int32)
 
 # Lookup the word embedding
 # Add together element embeddings in window:
-# embed = tf.zeros([batch_size, embedding_size])
-# for element in range(window_size):
-#     embed += tf.nn.embedding_lookup(embeddings, x_inputs[:, element])
-
-word_embed = tf.zeros([batch_size, word_embedding_size])
+word_embed = tf.zeros([batch_size, word_emb_size])
 for element in range(window_size):
     word_embed += tf.nn.embedding_lookup(word_embeddings, x_inputs[:, element])
 
@@ -147,14 +147,10 @@ for element in range(window_size):
 if is_question:
     question_indices = tf.slice(x_inputs, begin=[0, window_size], size=[batch_size, 1])
     question_embed = tf.nn.embedding_lookup(question_embeddings, question_indices)
-
-    doc_indices = question_indices
     doc_embed = question_embed
 else:
     answer_indices = tf.slice(x_inputs, begin=[0, window_size], size=[batch_size, 1])
     answer_embed = tf.nn.embedding_lookup(answer_embeddings, answer_indices)
-
-    doc_indices = answer_indices
     doc_embed = answer_embed
 
 # concatenate embeddings
@@ -174,10 +170,10 @@ loss = tf.reduce_mean(tf.nn.nce_loss(weights=nce_weights,
                                      labels=y_target,
                                      inputs=final_embed,
                                      num_sampled=num_sampled,
-                                     num_classes=vocabulary_size))
+                                     num_classes=vocab_size))
                                      
 # Create optimizer
-optimizer = tf.train.GradientDescentOptimizer(learning_rate=model_learning_rate)
+optimizer = tf.train.GradientDescentOptimizer(learning_rate=lr)
 train_step = optimizer.minimize(loss)
 
 # Cosine similarity between words
@@ -205,7 +201,7 @@ sess.run(init)
 print('Starting Training')
 loss_vec = []
 loss_x_vec = []
-for i in range(generations):
+for i in range(iterations):
     # batch_inputs, batch_labels = text_helpers.generate_batch_data(
     #     text_data, batch_size, window_size, method='doc2vec')
     # feed_dict = {x_inputs : batch_inputs, y_target : batch_labels}
