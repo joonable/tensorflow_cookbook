@@ -58,7 +58,7 @@ def load_dataset():
     df = pd.read_pickle('/home/will/workspace/sr_data/preprocessed_sr_data_180816.pkl')    # TODO file_path
     texts = df.question_pos_text.apply(lambda x: " ".join(x)).drop_duplicates().tolist()
     target = [i for i in range(len(texts))]
-    print(texts[0])
+    # print(texts[0])
     return texts, target
 
 

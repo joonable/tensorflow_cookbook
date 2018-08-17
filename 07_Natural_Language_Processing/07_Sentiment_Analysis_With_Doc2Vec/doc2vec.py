@@ -35,11 +35,11 @@ data_folder_name = 'temp'
 if not os.path.exists(data_folder_name):
     os.makedirs(data_folder_name)
 
-with open('./config.json') as json_file:
-    conf = json.load(json_file)
-
 # Start a graph session
 sess = tf.Session()
+
+with open('./config.json') as json_file:
+    conf = json.load(json_file)
 
 # Declare model parameters
 batch_size = conf['batch_size']
@@ -96,6 +96,10 @@ text_data = text_helpers.text_to_numbers(texts, word_dictionary)
 valid_examples = [word_dictionary[x] for x in valid_words]    
 
 print('Creating Model')
+print(len(texts))
+print(len(texts))
+print(len(texts))
+print(len(texts))
 
 # Define Embeddings:
 word_embeddings = tf.Variable(tf.random_uniform([vocab_size, word_emb_size], -1.0, 1.0))
@@ -215,158 +219,154 @@ for i in range(iterations):
             pickle.dump(word_dictionary, f)
         
         # Save embeddings
-        model_checkpoint_path = os.path.join(os.getcwd(),data_folder_name,'doc2vec_movie_embeddings.ckpt')
+        model_checkpoint_path = os.path.join(os.getcwd(),data_folder_name,'question_embeddings.ckpt')
         save_path = saver.save(sess, model_checkpoint_path)
         print('Model saved in file: {}'.format(save_path))
 
 
 
-'''
-# Start logistic model-------------------------
-max_words = 20
-logistic_batch_size = 500
-
-# Split dataset into train and test sets
-# Need to keep the indices sorted to keep track of document index
-train_indices = np.sort(np.random.choice(len(target), round(0.8*len(target)), replace=False))
-test_indices = np.sort(np.array(list(set(range(len(target))) - set(train_indices))))
-texts_train = [x for ix, x in enumerate(texts) if ix in train_indices]
-texts_test = [x for ix, x in enumerate(texts) if ix in test_indices]
-target_train = np.array([x for ix, x in enumerate(target) if ix in train_indices])
-target_test = np.array([x for ix, x in enumerate(target) if ix in test_indices])
-
-# Convert texts to lists of indices
-text_data_train = np.array(text_helpers.text_to_numbers(texts_train, word_dictionary))
-text_data_test = np.array(text_helpers.text_to_numbers(texts_test, word_dictionary))
-
-# Pad/crop movie reviews to specific length
-text_data_train = np.array([x[0:max_words] for x in [y+[0]*max_words for y in text_data_train]])
-text_data_test = np.array([x[0:max_words] for x in [y+[0]*max_words for y in text_data_test]])
-
-# Define Logistic placeholders
-log_x_inputs = tf.placeholder(tf.int32, shape=[None, max_words + 1]) # plus 1 for doc index
-log_y_target = tf.placeholder(tf.int32, shape=[None, 1])
-
-# Define logistic embedding lookup (needed if we have two different batch sizes)
-# Add together element embeddings in window:
-log_embed = tf.zeros([logistic_batch_size, embedding_size])
-for element in range(max_words):
-    log_embed += tf.nn.embedding_lookup(embeddings, log_x_inputs[:, element])
-
-log_doc_indices = tf.slice(log_x_inputs, [0,max_words],[logistic_batch_size,1])
-log_doc_embed = tf.nn.embedding_lookup(doc_embeddings,log_doc_indices)
-
-# concatenate embeddings
-log_final_embed = tf.concat(axis=1, values=[log_embed, tf.squeeze(log_doc_embed)])
-
-# Define model:
-# Create variables for logistic regression
-A = tf.Variable(tf.random_normal(shape=[concatenated_size,1]))
-b = tf.Variable(tf.random_normal(shape=[1,1]))
-
-# Declare logistic model (sigmoid in loss function)
-model_output = tf.add(tf.matmul(log_final_embed, A), b)
-
-# Declare loss function (Cross Entropy loss)
-logistic_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=model_output, labels=tf.cast(log_y_target, tf.float32)))
-
-# Actual Prediction
-prediction = tf.round(tf.sigmoid(model_output))
-predictions_correct = tf.cast(tf.equal(prediction, tf.cast(log_y_target, tf.float32)), tf.float32)
-accuracy = tf.reduce_mean(predictions_correct)
-
-# Declare optimizer
-logistic_opt = tf.train.GradientDescentOptimizer(learning_rate=0.01)
-logistic_train_step = logistic_opt.minimize(logistic_loss, var_list=[A, b])
-
-# Intitialize Variables
-init = tf.global_variables_initializer()
-sess.run(init)
-
-# Start Logistic Regression
-print('Starting Logistic Doc2Vec Model Training')
-train_loss = []
-test_loss = []
-train_acc = []
-test_acc = []
-i_data = []
-for i in range(10000):
-    rand_index = np.random.choice(text_data_train.shape[0], size=logistic_batch_size)
-'''
-    # '''
-    # batch_size가 넘지 않을 떄 까지 임의의 문장을 계속 뽑는다
-    # 몇 개의 문장이 내부에 존재할지는 모름
-    #
-    # batch_inputs = [
-    #     [4026, 1095,  679, 8818],
-    #     [1095,  679,  755, 8818],
-    #     [ 679,  755, 1132, 8818],
-    #     ....
-    #     [1972, 2849,    0, 1494],
-    #     [2849,    0,    0, 1494],
-    #     [   0,    0,   45, 1494] ]
-    #
-    # batch_input_format = [word_seq_0, word_seq_1, word_seq2, doc_idx]
-    #
-    # batch_labels = ['755', '1132', .... ,'45', '14']
-    # batch_label_format = [word_seq_3, word_seq_4, .... ]
-    #
-    # len(batch_inputs, batch_labels) == batch_size
-    # '''
-'''
-    rand_x = text_data_train[rand_index]
-    # Append review index at the end of text data
-    rand_x_doc_indices = train_indices[rand_index]
-    rand_x = np.hstack((rand_x, np.transpose([rand_x_doc_indices])))
-    rand_y = np.transpose([target_train[rand_index]])
-    
-    feed_dict = {log_x_inputs : rand_x, log_y_target : rand_y}
-    sess.run(logistic_train_step, feed_dict=feed_dict)
-    
-    # Only record loss and accuracy every 100 generations
-    if (i + 1) % 100 == 0:
-        rand_index_test = np.random.choice(text_data_test.shape[0], size=logistic_batch_size)
-        rand_x_test = text_data_test[rand_index_test]
-        # Append review index at the end of text data
-        rand_x_doc_indices_test = test_indices[rand_index_test]
-        rand_x_test = np.hstack((rand_x_test, np.transpose([rand_x_doc_indices_test])))
-        rand_y_test = np.transpose([target_test[rand_index_test]])
-        
-        test_feed_dict = {log_x_inputs: rand_x_test, log_y_target: rand_y_test}
-        
-        i_data.append(i+1)
-
-        train_loss_temp = sess.run(logistic_loss, feed_dict=feed_dict)
-        train_loss.append(train_loss_temp)
-        
-        test_loss_temp = sess.run(logistic_loss, feed_dict=test_feed_dict)
-        test_loss.append(test_loss_temp)
-        
-        train_acc_temp = sess.run(accuracy, feed_dict=feed_dict)
-        train_acc.append(train_acc_temp)
-    
-        test_acc_temp = sess.run(accuracy, feed_dict=test_feed_dict)
-        test_acc.append(test_acc_temp)
-    if (i + 1) % 500 == 0:
-        acc_and_loss = [i + 1, train_loss_temp, test_loss_temp, train_acc_temp, test_acc_temp]
-        acc_and_loss = [np.round(x,2) for x in acc_and_loss]
-        print('Generation # {}. Train Loss (Test Loss): {:.2f} ({:.2f}). Train Acc (Test Acc): {:.2f} ({:.2f})'.format(*acc_and_loss))
-
-# Plot loss over time
-plt.plot(i_data, train_loss, 'k-', label='Train Loss')
-plt.plot(i_data, test_loss, 'r--', label='Test Loss', linewidth=4)
-plt.title('Cross Entropy Loss per Generation')
-plt.xlabel('Generation')
-plt.ylabel('Cross Entropy Loss')
-plt.legend(loc='upper right')
-plt.show()
-
-# Plot train and test accuracy
-plt.plot(i_data, train_acc, 'k-', label='Train Set Accuracy')
-plt.plot(i_data, test_acc, 'r--', label='Test Set Accuracy', linewidth=4)
-plt.title('Train and Test Accuracy')
-plt.xlabel('Generation')
-plt.ylabel('Accuracy')
-plt.legend(loc='lower right')
-plt.show()
-'''
+#
+# # Start logistic model-------------------------
+# max_words = 20
+# logistic_batch_size = 500
+#
+# # Split dataset into train and test sets
+# # Need to keep the indices sorted to keep track of document index
+# train_indices = np.sort(np.random.choice(len(target), round(0.8*len(target)), replace=False))
+# test_indices = np.sort(np.array(list(set(range(len(target))) - set(train_indices))))
+# texts_train = [x for ix, x in enumerate(texts) if ix in train_indices]
+# texts_test = [x for ix, x in enumerate(texts) if ix in test_indices]
+# target_train = np.array([x for ix, x in enumerate(target) if ix in train_indices])
+# target_test = np.array([x for ix, x in enumerate(target) if ix in test_indices])
+#
+# # Convert texts to lists of indices
+# text_data_train = np.array(text_helpers.text_to_numbers(texts_train, word_dictionary))
+# text_data_test = np.array(text_helpers.text_to_numbers(texts_test, word_dictionary))
+#
+# # Pad/crop movie reviews to specific length
+# text_data_train = np.array([x[0:max_words] for x in [y+[0]*max_words for y in text_data_train]])
+# text_data_test = np.array([x[0:max_words] for x in [y+[0]*max_words for y in text_data_test]])
+#
+# # Define Logistic placeholders
+# log_x_inputs = tf.placeholder(tf.int32, shape=[None, max_words + 1]) # plus 1 for doc index
+# log_y_target = tf.placeholder(tf.int32, shape=[None, 1])
+#
+# # Define logistic embedding lookup (needed if we have two different batch sizes)
+# # Add together element embeddings in window:
+# log_embed = tf.zeros([logistic_batch_size, embedding_size])
+# for element in range(max_words):
+#     log_embed += tf.nn.embedding_lookup(embeddings, log_x_inputs[:, element])
+#
+# log_doc_indices = tf.slice(log_x_inputs, [0,max_words],[logistic_batch_size,1])
+# log_doc_embed = tf.nn.embedding_lookup(doc_embeddings,log_doc_indices)
+#
+# # concatenate embeddings
+# log_final_embed = tf.concat(axis=1, values=[log_embed, tf.squeeze(log_doc_embed)])
+#
+# # Define model:
+# # Create variables for logistic regression
+# A = tf.Variable(tf.random_normal(shape=[concatenated_size,1]))
+# b = tf.Variable(tf.random_normal(shape=[1,1]))
+#
+# # Declare logistic model (sigmoid in loss function)
+# model_output = tf.add(tf.matmul(log_final_embed, A), b)
+#
+# # Declare loss function (Cross Entropy loss)
+# logistic_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=model_output, labels=tf.cast(log_y_target, tf.float32)))
+#
+# # Actual Prediction
+# prediction = tf.round(tf.sigmoid(model_output))
+# predictions_correct = tf.cast(tf.equal(prediction, tf.cast(log_y_target, tf.float32)), tf.float32)
+# accuracy = tf.reduce_mean(predictions_correct)
+#
+# # Declare optimizer
+# logistic_opt = tf.train.GradientDescentOptimizer(learning_rate=0.01)
+# logistic_train_step = logistic_opt.minimize(logistic_loss, var_list=[A, b])
+#
+# # Intitialize Variables
+# init = tf.global_variables_initializer()
+# sess.run(init)
+#
+# # Start Logistic Regression
+# print('Starting Logistic Doc2Vec Model Training')
+# train_loss = []
+# test_loss = []
+# train_acc = []
+# test_acc = []
+# i_data = []
+# for i in range(10000):
+#     rand_index = np.random.choice(text_data_train.shape[0], size=logistic_batch_size)
+#     # batch_size가 넘지 않을 떄 까지 임의의 문장을 계속 뽑는다
+#     # 몇 개의 문장이 내부에 존재할지는 모름
+#     #
+#     # batch_inputs = [
+#     #     [4026, 1095,  679, 8818],
+#     #     [1095,  679,  755, 8818],
+#     #     [ 679,  755, 1132, 8818],
+#     #     ....
+#     #     [1972, 2849,    0, 1494],
+#     #     [2849,    0,    0, 1494],
+#     #     [   0,    0,   45, 1494] ]
+#     #
+#     # batch_input_format = [word_seq_0, word_seq_1, word_seq2, doc_idx]
+#     #
+#     # batch_labels = ['755', '1132', .... ,'45', '14']
+#     # batch_label_format = [word_seq_3, word_seq_4, .... ]
+#     #
+#     # len(batch_inputs, batch_labels) == batch_size
+#
+#     rand_x = text_data_train[rand_index]
+#     # Append review index at the end of text data
+#     rand_x_doc_indices = train_indices[rand_index]
+#     rand_x = np.hstack((rand_x, np.transpose([rand_x_doc_indices])))
+#     rand_y = np.transpose([target_train[rand_index]])
+#
+#     feed_dict = {log_x_inputs : rand_x, log_y_target : rand_y}
+#     sess.run(logistic_train_step, feed_dict=feed_dict)
+#
+#     # Only record loss and accuracy every 100 generations
+#     if (i + 1) % 100 == 0:
+#         rand_index_test = np.random.choice(text_data_test.shape[0], size=logistic_batch_size)
+#         rand_x_test = text_data_test[rand_index_test]
+#         # Append review index at the end of text data
+#         rand_x_doc_indices_test = test_indices[rand_index_test]
+#         rand_x_test = np.hstack((rand_x_test, np.transpose([rand_x_doc_indices_test])))
+#         rand_y_test = np.transpose([target_test[rand_index_test]])
+#
+#         test_feed_dict = {log_x_inputs: rand_x_test, log_y_target: rand_y_test}
+#
+#         i_data.append(i+1)
+#
+#         train_loss_temp = sess.run(logistic_loss, feed_dict=feed_dict)
+#         train_loss.append(train_loss_temp)
+#
+#         test_loss_temp = sess.run(logistic_loss, feed_dict=test_feed_dict)
+#         test_loss.append(test_loss_temp)
+#
+#         train_acc_temp = sess.run(accuracy, feed_dict=feed_dict)
+#         train_acc.append(train_acc_temp)
+#
+#         test_acc_temp = sess.run(accuracy, feed_dict=test_feed_dict)
+#         test_acc.append(test_acc_temp)
+#     if (i + 1) % 500 == 0:
+#         acc_and_loss = [i + 1, train_loss_temp, test_loss_temp, train_acc_temp, test_acc_temp]
+#         acc_and_loss = [np.round(x,2) for x in acc_and_loss]
+#         print('Generation # {}. Train Loss (Test Loss): {:.2f} ({:.2f}). Train Acc (Test Acc): {:.2f} ({:.2f})'.format(*acc_and_loss))
+#
+# # Plot loss over time
+# plt.plot(i_data, train_loss, 'k-', label='Train Loss')
+# plt.plot(i_data, test_loss, 'r--', label='Test Loss', linewidth=4)
+# plt.title('Cross Entropy Loss per Generation')
+# plt.xlabel('Generation')
+# plt.ylabel('Cross Entropy Loss')
+# plt.legend(loc='upper right')
+# plt.show()
+#
+# # Plot train and test accuracy
+# plt.plot(i_data, train_acc, 'k-', label='Train Set Accuracy')
+# plt.plot(i_data, test_acc, 'r--', label='Test Set Accuracy', linewidth=4)
+# plt.title('Train and Test Accuracy')
+# plt.xlabel('Generation')
+# plt.ylabel('Accuracy')
+# plt.legend(loc='lower right')
+# plt.show()
