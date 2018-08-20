@@ -75,7 +75,6 @@ def build_dictionary(sentences, vocabulary_size):
     # Turn sentences (list of strings) into lists of words
     split_sentences = [s.split() for s in sentences]
     words = [x for sublist in split_sentences for x in sublist]
-    print(words[0] + words[3] + words[2332])
 
     print("# words : %d ", len(words))
 

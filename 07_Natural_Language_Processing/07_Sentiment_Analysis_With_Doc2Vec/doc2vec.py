@@ -24,6 +24,10 @@ import tarfile
 import urllib.request
 import json
 import text_helpers
+
+from gensim.test.utils import common_texts
+from gensim.models.doc2vec import Doc2Vec, TaggedDocument
+
 from nltk.corpus import stopwords
 from tensorflow.python.framework import ops
 ops.reset_default_graph()

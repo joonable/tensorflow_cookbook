@@ -1,15 +1,15 @@
 {
-  "batch_size" : 500,
+  "batch_size" : 256,
 
-  "vocab_size" : 6000,
-  "word_emb_size" : 300,
+  "vocab_size" : 6500,
+  "word_emb_size" : 200,
   "doc_emb_size" : 300,
-  "window_size" : 7,
+  "window_size" : 5,
 
-  "iterations" : 50000,
+  "iterations" : 20000,
   "lr" : 0.001,
 
   "save_embeddings_every" : 5000,
-  "print_valid_every" : 5000,
-  "print_loss_every" : 500
+  "print_valid_every" : 3000,
+  "print_loss_every" : 300
 }
